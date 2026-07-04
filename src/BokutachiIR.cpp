@@ -279,6 +279,7 @@ static std::string OLR2_IR_API GetWebRankingUrl(const char* songHash_) {
 	}
 
 	std::string chartId;
+	std::string game;
 	try
 	{
 		json log = json::parse(r.text);
@@ -287,6 +288,7 @@ static std::string OLR2_IR_API GetWebRankingUrl(const char* songHash_) {
 			return "";
 		}
 		chartId = log["body"]["charts"][0]["chartID"];
+		game = log["body"]["charts"][0]["game"];
 	}
 	catch (json::exception& e)
 	{
@@ -294,7 +296,7 @@ static std::string OLR2_IR_API GetWebRankingUrl(const char* songHash_) {
 		return "";
 	}
 
-	return std::format("https://boku.tachi.ac/games/bms-7k/charts/{}", chartId);
+	return std::format("https://boku.tachi.ac/games/{}/charts/{}", game, chartId);
 }
 
 extern "C" OLR2_IR_EXPORT void OLR2_IR_API GetMethodTable(MethodTable& table) {
