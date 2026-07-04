@@ -11,14 +11,6 @@
 
 using json = nlohmann::ordered_json;
 
-#ifdef _WIN32
-#define IR_API __cdecl
-#define IR_EXPORT __declspec(dllexport)
-#else
-#define IR_API
-#define IR_EXPORT
-#endif // _WIN32
-
 // Technically hook version, but let's think of it as API version :^)
 // Although as the time of writing this we send more fields than BokutachiHook.
 static constexpr struct version {
@@ -65,7 +57,7 @@ static void Logger(std::string_view message)
 	}
 }
 
-static const char* IR_API GetName() {
+static const char* OLR2_IR_API GetName() {
 	return "BokutachiIR";
 }
 
@@ -108,7 +100,7 @@ static bool CheckTachiApi() {
 	return true;
 }
 
-static bool IR_API Login() {
+static bool OLR2_IR_API Login() {
 	try {
 		json config;
 		{
@@ -221,7 +213,7 @@ static std::string FormJSONString(const IRScoreV1& score) {
 	return scorePacket.dump(4);
 }
 
-static SendScoreStatus IR_API SendScore(const IRScoreV1& score) {
+static SendScoreStatus OLR2_IR_API SendScore(const IRScoreV1& score) {
 	const std::string reqBody = FormJSONString(score);
 	const std::string songName = std::format("{} {}", score.song.title, score.song.subtitle);
 	const bool hashIsCourse = score.song.hash.length() > 32;
@@ -270,7 +262,7 @@ static SendScoreStatus IR_API SendScore(const IRScoreV1& score) {
 	return SendScoreStatus::Ok;
 }
 
-extern "C" IR_EXPORT void GetMethodTable(MethodTable& table) {
+extern "C" OLR2_IR_EXPORT void OLR2_IR_API GetMethodTable(MethodTable& table) {
 	table.GetName = &GetName;
 	table.LoginV1 = &Login;
 	table.SendScoreV1 = &SendScore;
