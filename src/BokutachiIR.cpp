@@ -5,6 +5,7 @@
 #include <fstream>
 #include <print>
 #include <string>
+#include <string_view>
 
 #include <cpr/cpr.h>
 #include <nlohmann/json.hpp>
