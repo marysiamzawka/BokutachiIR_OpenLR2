@@ -272,8 +272,7 @@ static std::string OLR2_IR_API GetWebRankingUrl(const char* songHash_) {
 	}
 
 	cpr::Response r = cpr::Get(cpr::Url{ std::format("https://boku.tachi.ac/api/v1/search/chart-hash?search={}", hash) },
-		cpr::Timeout{ std::chrono::seconds(5) },
-		cpr::Bearer{ /*not actually required*/ apiKey });
+		cpr::Timeout{ std::chrono::seconds(5) });
 	if (r.error.code != cpr::ErrorCode::OK || r.status_code / 100 == 5) {
 		Logger(std::format("chart-hash request for {} failed: {}", hash, r.error.message));
 		return "";
