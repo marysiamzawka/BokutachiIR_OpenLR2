@@ -263,10 +263,46 @@ static SendScoreStatus OLR2_IR_API SendScore(const IRScoreV1& score) {
 	return SendScoreStatus::Ok;
 }
 
+static std::string OLR2_IR_API GetWebRankingUrl(const char* songHash_) {
+	std::string_view hash{songHash_};
+	const bool hashIsCourse = hash.size() > 32;
+	if (hashIsCourse) {
+		Logger("Tachi doesn't have course rankings");
+		return "";
+	}
+
+	cpr::Response r = cpr::Get(cpr::Url{ std::format("https://boku.tachi.ac/api/v1/search/chart-hash?search={}", hash) },
+		cpr::Timeout{ std::chrono::seconds(5) },
+		cpr::Bearer{ /*not actually required*/ apiKey });
+	if (r.error.code != cpr::ErrorCode::OK || r.status_code / 100 == 5) {
+		Logger(std::format("chart-hash request for {} failed: {}", hash, r.error.message));
+		return "";
+	}
+
+	std::string chartId;
+	try
+	{
+		json log = json::parse(r.text);
+		if (!log["success"]) {
+			Logger(std::format("chart-hash request for {} !success: {}", hash, std::string(log["description"])));
+			return "";
+		}
+		chartId = log["body"]["charts"][0]["chartID"];
+	}
+	catch (json::exception& e)
+	{
+		Logger(std::format("chart-hash request for {} JSON exception: {}", hash, e.what()));
+		return "";
+	}
+
+	return std::format("https://boku.tachi.ac/games/bms-7k/charts/{}", chartId);
+}
+
 extern "C" OLR2_IR_EXPORT void OLR2_IR_API GetMethodTable(MethodTable& table) {
 	table.GetName = &GetName;
 	table.LoginV1 = &Login;
 	table.SendScoreV1 = &SendScore;
+	table.GetWebRankingUrl = &GetWebRankingUrl;
 }
 
 #ifdef _WIN32
