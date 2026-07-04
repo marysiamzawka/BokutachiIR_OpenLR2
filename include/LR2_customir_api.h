@@ -1,7 +1,17 @@
 #pragma once
 
-#include <string>
 #include <array>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#ifdef _WIN32
+#define OLR2_IR_API __cdecl
+#define OLR2_IR_EXPORT __declspec(dllexport)
+#else
+#define OLR2_IR_API
+#define OLR2_IR_EXPORT
+#endif // _WIN32
 
 struct IRScoreV1 {
 	struct SONG {
@@ -97,6 +107,14 @@ struct IRScoreV1 {
 		std::array<int, 1000> exscore{};
 		std::array<int, 1000> rate{};
 	} graphs{};
+	// In LR2 ghost format. May not be present in some cases, e.g. course scores. Example: E@3ZZ.
+	std::string ghostData;
+	// Chart level at play time (SONGDATA::level). 0 if unknown or not applicable.
+	int songPlayLevel{};
+	uint64_t reserved1{};
+	uint64_t reserved2{};
+	uint64_t reserved3{};
+	uint64_t reserved4{};
 };
 
 enum class SendScoreStatus: int {
@@ -105,14 +123,159 @@ enum class SendScoreStatus: int {
 	Fail,
 };
 
-#ifndef _WIN32
-#define __cdecl
-#endif // _WIN32
-struct MethodTable {
-	const char*(__cdecl* GetName)() = nullptr;
-	bool(__cdecl* LoginV1)() = nullptr;
-	SendScoreStatus(__cdecl* SendScoreV1)(const IRScoreV1& score) = nullptr;
+namespace openlr2 {
+
+enum class Gauge : int {
+	Unknown,
+	Groove,
+	Survival,
+	Death,
+	Easy,
+	PAttack,
+	GAttack,
 };
-#ifndef _WIN32
-#undef __cdecl
-#endif // _WIN32
+
+enum class InputType : int {
+	Unknown = 0,
+	Keyboard,
+	Controller,
+	Midi,
+};
+
+enum class GhostMode : int {
+	Target = 0,
+	Top,
+	Next,
+	Average,
+};
+
+enum class Lamp : int {
+	NoPlay = 0,
+	Fail,
+	Easy,
+	Groove,
+	Hard,
+	FullCombo,
+};
+
+enum class Random : int {
+	No = 0,
+	Mirror,
+	Random,
+	SRandom,
+	Scatter, // AKA H-Random
+	Converge, // AKA All-Scratch
+};
+
+struct IRGhostResult {
+	std::string displayName;
+	std::string ghostData; // \ref IRScoreV1::ghostData
+	// P1 and P2 random layouts.
+	// Should be 0 if the layout is not known, or the corresponding \ref randomOption is not noran, mirror, or random.
+	// Examples: 1234567 54321 135792468.
+	std::array<int, 2> randomLayout{};
+	std::array<Random, 2> randomOption{};
+	Gauge gauge{Gauge::Unknown};
+	// LR2 rseed. If not known, the layout from \ref randomLayout can be used instead.
+	// -1 if unknown, 0-0x7ffe otherwise.
+	int rseed{-1};
+	bool dpflip{};
+	bool reserved1{};
+	bool reserved2{};
+	bool reserved3{};
+	int averageExscore{}; // Only used if \ref GhostMode == \ref GhostMode::Average.
+};
+
+struct IRRankPlayer {
+	std::string name; // Display name of the user
+	std::string comment; // User-defined comment of the score
+	uint64_t timestamp{}; // Seconds since Unix Epoch or 0 if unknown
+	// P1 and P2 random layouts.
+	// Should be 0 if the layout is not known, or the corresponding \ref randomOption is not noran, mirror, or random.
+	// Examples: 1234567 54321 135792468.
+	std::array<int, 2> randomLayout{};
+	std::array<Random, 2> randomOption{};
+	InputType inputType{InputType::Unknown};
+	int id{}; // Numeric ID of the user
+	int playcount{};
+	Lamp clear{};
+	int notes{}; // Amount of notes in the chart (TODO: allow 0 for such case?) or chart variation if the chart is affected by #RANDOM
+	int maxcombo{};
+	int pg{};
+	int gr{};
+	int gd{};
+	int bd{};
+	int pr{};
+	int minbp{};
+	Gauge gauge{Gauge::Unknown};
+	// LR2 rseed. If not known, the layout from \ref randomLayout can be used instead.
+	// -1 if unknown, 0-0x7ffe otherwise.
+	int rseed{-1};
+	bool dpflip{};
+	bool reserved1{};
+	bool reserved2{};
+	bool reserved3{};
+	uint64_t reserved4{};
+	uint64_t reserved5{};
+	uint64_t reserved6{};
+	uint64_t reserved7{};
+};
+
+struct IRRankResult {
+	// The leaderboard. Top X players, usually 999.
+	// Must be sorted by exscore.
+	std::vector<IRRankPlayer> ranking;
+	std::array<int, 6> clearPlayers{};
+	// Seconds since Unix Epoch.
+	// When the data was fetched, can be used to display how fresh the data is.
+	// It's up to the CustomIR module to decide for how long it wants to cache the data.
+	uint64_t lastupdate{};
+	// Current player's position in the leaderboard. Separate parameter since it may be outside of \ref ranking.
+	int myRank{};
+	int reserved{};
+	int totalPlayer{};
+	int totalPlaycount{};
+};
+
+enum class GetStatus: int {
+	Ok = 0,
+	Retry,
+	Fail,
+};
+
+} // namespace openlr2
+
+struct MethodTable {
+	// Mandatory method. Module name must be unique among loaded modules.
+	const char*(OLR2_IR_API* GetName)() = nullptr;
+	// Maybe parse some configuration file there, and perform URL request to your IR for login.
+	// This method is ran at game initialization synchronously.
+	// Can be used for general initialization.
+	bool(OLR2_IR_API* LoginV1)() = nullptr;
+	// Ran on its own thread at score result, both for normal plays and courses.
+	// This is called even with scores that wouldn't be sent to LR2IR or saved to the score.db, it's up to the module to
+	// filter them.
+	// For soft errors, SendScore should return SendScoreStatus::Retry. The game will retry calling a sensible amount
+	// times with a backoff then.
+	SendScoreStatus(OLR2_IR_API* SendScoreV1)(const IRScoreV1& score) = nullptr;
+	// Called from score result after SendScore completes.
+	// The game awaits on this to complete before it lets the user out of result.
+	// Make sure to save the fetched result somewhere, so that RestoreCachedRank can then load it.
+	// Replace with HTTP + mandatory cache write.
+	openlr2::GetStatus(OLR2_IR_API* GetResultRank)(const char* songHash, int reserved, openlr2::IRRankResult& out) = nullptr;
+	// Called from song select when scrolling past 'songHash' song.
+	// Loads the leaderboard from where GetResultRank saved it.
+	// Do not perform HTTP here.
+	// Replace with cache read.
+	openlr2::GetStatus(OLR2_IR_API* RestoreCachedRank)(const char* songHash, int reserved, openlr2::IRRankResult& out) = nullptr;
+	// This is called synchronously when play is entered to retrieve the ghost data for the play.
+	openlr2::GetStatus(OLR2_IR_API* GetGhost)(const char* songHash, openlr2::GhostMode mode, int targetPlayerId, openlr2::IRGhostResult& out) = nullptr;
+	[[deprecated("Use GetWebRankingUrl instead")]] const char* webRankingUrlTemplate = nullptr;
+	// This is called synchronously when F5 or the IR button is pressed in song-select.
+	// \retval "" - error or inapplicable.
+	std::string(OLR2_IR_API* GetWebRankingUrl)(char const* songHash) = nullptr;
+	// Forward compatibility.
+	// This field will always be moved to the end of the struct when new fields are added.
+	// Thanks to this CustomIR module designed for newer game version won't write out-of-bounds memory when assigning fields of older MethodTable.
+	void* _trailing_field_to_increase_struct_size[6]{};
+};
