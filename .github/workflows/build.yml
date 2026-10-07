@@ -44,13 +44,19 @@ jobs:
       - name: Build
         run: cmake --build ./build --preset '${{ matrix.build-preset }}'
 
-      - name: Package
-        run: cpack -G ZIP --config build/CPackConfig.cmake -B build/my_packages -C RelWithDebInfo
+      - name: Install
+        run: cmake --install ./build --config RelWithDebInfo --prefix ./build/install
+        if: ${{ matrix.package-name != '' }}
+
+      - name: Short commit hash
+        id: vars
+        shell: bash
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
         if: ${{ matrix.package-name != '' }}
 
       - name: Upload package
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.package-name }}
-          path: build/my_packages/*.zip
+          name: ${{ matrix.package-name }}-${{ steps.vars.outputs.sha_short }}
+          path: build/install/bin/*
         if: ${{ matrix.package-name != '' }}
