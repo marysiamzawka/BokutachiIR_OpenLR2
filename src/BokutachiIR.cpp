@@ -434,7 +434,7 @@ static openlr2::GetStatus OLR2_IR_API SyncRivalScores(int rivalId, uint64_t /*la
 		// chartID -> BMS MD5 hash, so pbs (keyed by chartID) can be matched to LR2's hash-keyed scores.
 		std::unordered_map<std::string, std::string> chartHashById;
 		for (const auto& chart : JsonOr<json>(body, "charts", json::array())) {
-			const std::string chartId = JsonOr<std::string>(chart, "id", "");
+			const std::string chartId = JsonOr<std::string>(chart, "chartID", "");
 			const std::string hash = JsonOr<std::string>(JsonOr<json>(chart, "data", json::object()), "hashMD5", "");
 			if (!chartId.empty() && !hash.empty()) {
 				chartHashById.emplace(chartId, hash);
