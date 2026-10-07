@@ -54,25 +54,3 @@ jobs:
           name: ${{ matrix.package-name }}
           path: build/my_packages/*.zip
         if: ${{ matrix.package-name != '' }}
-
-  release:
-    if: github.ref_name == 'master'
-    needs: build
-    name: "Release"
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: artifacts
-
-      - name: Show downloaded artifacts
-        run: ls -R artifacts
-
-      - name: Release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: artifacts/**
-          tag_name: latest
